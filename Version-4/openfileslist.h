@@ -6,16 +6,17 @@
 
 #define MAXFILENAME 1024
 
-struct OpenFile{
+typedef struct OpenFile{
 	int df;
 	int mode;
-	char name[MAXFILENAME]
-	}
+	char name[MAXFILENAME];
+	}OpenFile;
 
-int OpenFilesAdd(OpenFile d);
-int OpenFilesDel(OpenFile d);
+int OpenFilesAdd(int df, int mode, char name[]);
+int OpenFilesDel(int df);
+void OpenFilesPrint(void *p);
 void OpenFilesList();
-OpenFile OpenFilesGet(char name[]):
+OpenFile* OpenFilesGet(int df);
 void OpenFilesClear();
 
 

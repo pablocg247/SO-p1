@@ -65,27 +65,24 @@ void Cmd_fin (char * arg[])  /*todos los cmd_ comparten prototipo*/
 }
 
 void Cmd_autores(char *arg[])
-{	
+{
     if (arg[0] == NULL) {
         printf("Mauro Fernandez Perez: mauro.fernandez.perez\n");
         printf("Pablo Carril Gontan: p.carril\n");
-        return;
     }
-    if (arg[1] != NULL){
-		printf("Uso: authors [-l|-n]\n");
-		return;
-	}
-    if(!strcmp(arg[0], "-l")){
-		printf("mauro.fernandez.perez\n");
-		printf("p.carril\n");
-	}else if(!strcmp(arg[0], "-n")){
-		printf("Mauro Fernandez Perez\n");
-		printf("Pablo Carril Gontan\n");
-	}else{
-		printf("Uso: authors [-l|-n]\n");
-	}
-}
 
+    else if (!strcmp(arg[0], "-l")) {
+        printf("mauro.fernandez.perez\n");
+        printf("p.carril\n");
+    }
+    else if (!strcmp(arg[0], "-n")) {
+        printf("Mauro Fernandez Perez\n");
+        printf("Pablo Carril Gontan\n");
+    }
+    else {
+        printf("Uso: authors [-l|-n]\n");
+    }
+}
 
 void Cmd_exec (char *arg[])
 {
@@ -194,7 +191,7 @@ void Cmd_date(char *arg[])
 
     printf("%s\n", texto);
 }
-/*
+
 void Cmd_sysinfo(char *arg[])
 {
     struct utsname datos;
@@ -211,7 +208,6 @@ void Cmd_sysinfo(char *arg[])
            datos.version,
            datos.machine);
 }
-*/
 
 struct COMANDO{
   char * nombre;
@@ -263,3 +259,348 @@ void Cmd_open (char * tr[]){
         printf ("Anadida entrada a la tabla ficheros abiertos: descriptor %d (%s)\n",df,tr[0]);
 }
 
+static int LeerNumero(const char *texto, intmax_t *numero)
+{
+    char *fin;
+
+    errno = 0;
+    *numero = strtoimax(texto, &fin, 10);
+
+    if (texto == fin || *fin != '\0' || errno == ERANGE) {
+        fprintf(stderr, "Numero no valido: %s\n", texto);
+        return 0;
+    }
+
+    return 1;
+}
+
+
+static int LeerDescriptor(const char *texto, int *df)
+{
+    intmax_t numero;
+
+    if (!LeerNumero(texto, &numero))
+        return 0;
+
+    if (numero < 0 || numero > INT_MAX) {
+        fprintf(stderr, "Descriptor fuera de rango\n");
+        return 0;
+    }
+
+    *df = (int)numero;
+    return 1;
+}
+
+void Cmd_lseek(char *arg[])
+{
+    int df, referencia;
+    intmax_t numero;
+    off_t posicion, resultado;
+
+    if (arg[0] == NULL || arg[1] == NULL ||
+        arg[2] == NULL || arg[3] != NULL) {
+        printf("Uso: lseek df pos SEEK_SET|SEEK_CUR|SEEK_END\n");
+        return;
+    }
+
+    if (!LeerDescriptor(arg[0], &df) ||
+        !LeerNumero(arg[1], &numero))
+        return;
+
+    posicion = (off_t)numero;
+
+    if ((intmax_t)posicion != numero) {
+        fprintf(stderr, "Posicion fuera de rango\n");
+        return;
+    }
+
+    if (!strcmp(arg[2], "SEEK_SET"))
+        referencia = SEEK_SET;
+    else if (!strcmp(arg[2], "SEEK_CUR"))
+        referencia = SEEK_CUR;
+    else if (!strcmp(arg[2], "SEEK_END"))
+        referencia = SEEK_END;
+    else {
+        printf("Referencia no valida: usa SEEK_SET, SEEK_CUR o SEEK_END\n");
+        return;
+    }
+
+    resultado = lseek(df, posicion, referencia);
+
+    if (resultado == (off_t)-1)
+        perror("Imposible cambiar posicion");
+    else
+        printf("Posicion actual: %jd\n", (intmax_t)resultado);
+}
+
+void Cmd_writestr(char *arg[])
+{
+    int df;
+    size_t longitud, total = 0;
+    ssize_t escritos;
+
+    if (arg[0] == NULL || arg[1] == NULL || arg[2] != NULL) {
+        printf("Uso: writestr df str (str sin espacios)\n");
+        return;
+    }
+
+    if (!LeerDescriptor(arg[0], &df))
+        return;
+
+    longitud = strlen(arg[1]);
+
+    while (total < longitud) {
+        escritos = write(df, arg[1] + total, longitud - total);
+
+        if (escritos == -1) {
+            if (errno == EINTR)
+                continue;
+
+            perror("Imposible escribir");
+            return;
+        }
+
+        if (escritos == 0) {
+            fprintf(stderr, "No se pudo completar la escritura\n");
+            return;
+        }
+
+        total += (size_t)escritos;
+    }
+
+    printf("Escritos %zu bytes\n", total);
+}
+
+void Cmd_readstr(char *arg[])
+{
+    int df;
+    intmax_t numero;
+    size_t cantidad;
+    ssize_t leidos;
+    char *texto;
+
+    if (arg[0] == NULL || arg[1] == NULL || arg[2] != NULL) {
+        printf("Uso: readstr df cont\n");
+        return;
+    }
+
+    if (!LeerDescriptor(arg[0], &df) ||
+        !LeerNumero(arg[1], &numero))
+        return;
+
+    if (numero < 0 ||
+        (uintmax_t)numero > (uintmax_t)SSIZE_MAX ||
+        (uintmax_t)numero > (uintmax_t)(SIZE_MAX - 1)) {
+        fprintf(stderr, "Cantidad fuera de rango\n");
+        return;
+    }
+
+    cantidad = (size_t)numero;
+    texto = malloc(cantidad + 1);
+
+    if (texto == NULL) {
+        perror("Imposible reservar memoria");
+        return;
+    }
+
+    do {
+        leidos = read(df, texto, cantidad);
+    } while (leidos == -1 && errno == EINTR);
+
+    if (leidos == -1) {
+        perror("Imposible leer");
+    }
+    else {
+        texto[leidos] = '\0';
+        printf("%s\n", texto);
+    }
+
+    free(texto);
+}
+
+
+void Cmd_makefile(char *arg[])
+{
+    int df;
+
+    if (arg[0] == NULL || arg[1] != NULL) {
+        printf("Uso: makefile nombre\n");
+        return;
+    }
+
+    df = open(arg[0], O_WRONLY | O_CREAT | O_EXCL, 0666);
+
+    if (df == -1) {
+        perror(arg[0]);
+        return;
+    }
+
+    if (close(df) == -1)
+        perror("Imposible cerrar el fichero creado");
+}
+
+
+void Cmd_makedir(char *arg[])
+{
+    if (arg[0] == NULL || arg[1] != NULL) {
+        printf("Uso: makedir nombre\n");
+        return;
+    }
+
+    if (mkdir(arg[0], 0777) == -1)
+        perror(arg[0]);
+}
+
+
+static char *CopiarRuta(const char *ruta)
+{
+    char *copia = strdup(ruta);
+    size_t n;
+
+    if (copia == NULL) {
+        perror("Imposible copiar ruta");
+        return NULL;
+    }
+
+    n = strlen(copia);
+
+    while (n > 1 && copia[n - 1] == '/')
+        copia[--n] = '\0';
+
+    return copia;
+}
+
+
+void Cmd_delete(char *arg[])
+{
+    struct stat datos;
+    int i, resultado;
+    char *ruta;
+
+    if (arg[0] == NULL) {
+        printf("Uso: delete nombre1 nombre2 ...\n");
+        return;
+    }
+
+    for (i = 0; arg[i] != NULL; i++) {
+        ruta = CopiarRuta(arg[i]);
+
+        if (ruta == NULL)
+            continue;
+
+        if (lstat(ruta, &datos) == -1) {
+            perror(ruta);
+        }
+        else {
+            if (S_ISDIR(datos.st_mode))
+                resultado = rmdir(ruta);
+            else
+                resultado = unlink(ruta);
+
+            if (resultado == -1)
+                perror(ruta);
+        }
+
+        free(ruta);
+    }
+}
+
+
+static int BorrarArbol(const char *ruta)
+{
+    struct stat datos;
+    DIR *directorio;
+    struct dirent *entrada;
+    char *hijo;
+    size_t tam;
+    int correcto = 1;
+
+    if (lstat(ruta, &datos) == -1) {
+        perror(ruta);
+        return 0;
+    }
+
+    if (!S_ISDIR(datos.st_mode)) {
+        if (unlink(ruta) == -1) {
+            perror(ruta);
+            return 0;
+        }
+
+        return 1;
+    }
+
+    directorio = opendir(ruta);
+
+    if (directorio == NULL) {
+        perror(ruta);
+        return 0;
+    }
+
+    while (1) {
+        errno = 0;
+        entrada = readdir(directorio);
+
+        if (entrada == NULL) {
+            if (errno != 0) {
+                perror(ruta);
+                correcto = 0;
+            }
+
+            break;
+        }
+
+        if (!strcmp(entrada->d_name, ".") ||
+            !strcmp(entrada->d_name, ".."))
+            continue;
+
+        tam = strlen(ruta) + strlen(entrada->d_name) + 2;
+        hijo = malloc(tam);
+
+        if (hijo == NULL) {
+            perror("Imposible reservar memoria");
+            correcto = 0;
+            break;
+        }
+
+        snprintf(hijo, tam, "%s/%s", ruta, entrada->d_name);
+
+        if (!BorrarArbol(hijo))
+            correcto = 0;
+
+        free(hijo);
+    }
+
+    if (closedir(directorio) == -1) {
+        perror(ruta);
+        correcto = 0;
+    }
+
+    if (correcto && rmdir(ruta) == -1) {
+        perror(ruta);
+        correcto = 0;
+    }
+
+    return correcto;
+}
+
+
+void Cmd_deltree(char *arg[])
+{
+    int i;
+    char *ruta;
+
+    if (arg[0] == NULL) {
+        printf("Uso: deltree nombre1 nombre2 ...\n");
+        return;
+    }
+
+    for (i = 0; arg[i] != NULL; i++) {
+        ruta = CopiarRuta(arg[i]);
+
+        if (ruta == NULL)
+            continue;
+
+        BorrarArbol(ruta);
+        free(ruta);
+    }
+}

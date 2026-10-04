@@ -10,6 +10,7 @@
 #include <time.h>
 #include <sys/utsname.h>
 
+
 #include "path.h"
 
 #define MAXNOMBRE 1024
@@ -27,10 +28,16 @@ void Cmd_importpath (char *arg[]);
 void Cmd_where (char *args[]);
 void Cmd_date(char *arg[]);
 void Cmd_authors(char *arg[]);
-//void Cmd_sysinfo(char *arg[]);
+void Cmd_sysinfo(char *arg[]);
 void Cmd_help(char *arg[]);
 void Cmd_open (char * tr[]);
-
+void Cmd_lseek(char *arg[]);
+void Cmd_readstr(char *arg[]);
+void Cmd_writestr(char *arg[]);
+void Cmd_makefile(char *arg[]);
+void Cmd_makedir(char *arg[]);
+void Cmd_delete(char *arg[]);
+void Cmd_deltree(char *arg[]);
 
 
 #endif
