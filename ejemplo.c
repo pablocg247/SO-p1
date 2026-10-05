@@ -1,6 +1,4 @@
 	#include "ejemplo.h"
-	#include "openfileslist.h"
-	#include <fcntl.h>
 	
 void AniadirAlPath(char *dir)
 {
@@ -281,20 +279,44 @@ void Cmd_close (char *tr[])
        OpenFilesDel(df);
 }
 
+void Cmd_listopen(char *tr[])
+{
+    OpenFilesList();
+}
+
 void Cmd_dup (char * tr[])
 { 
     int df, duplicado;
-    char aux[MAXNAME],*p;
-    
+    char aux[MAXFILENAME],*p;
+    OpenFile *f;
+
     if (tr[0]==NULL || (df=atoi(tr[0]))<0) {
         OpenFilesList();
         return;
     }
     
-	f = OpenFilesGet(tr[0]);
+	f = OpenFilesGet(df);
+    if (f == NULL){
+        printf("Imposible duplicar fichero\n");
+        return;
+    }
     p = f->name;
-    sprintf (aux,"dup %d (%s)",df, p);
-    .......AnadirAFicherosAbiertos......duplicado......aux.....fcntl(duplicado,F_GETFL).....;
+
+    duplicado = dup(df);
+    if (duplicado == -1) {
+        perror("Imposible duplicar descriptor");
+        return;
+    }
+
+    sprintf(aux, "dup %d (%s)", df, p);
+
+    int modo = fcntl(duplicado, F_GETFL);
+    if (OpenFilesAdd(duplicado, modo, aux) == -1) {
+        perror("Imposible anadir a la lista de ficheros abiertos");
+        close(duplicado);
+    } else {
+        printf("Anadida entrada a la tabla ficheros abiertos: descriptor %d (%s)\n", duplicado, aux);
+    }
 }
 
 static int LeerNumero(const char *texto, intmax_t *numero)

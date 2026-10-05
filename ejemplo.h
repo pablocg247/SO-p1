@@ -9,7 +9,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/utsname.h>
-
+#include "openfileslist.h"
+#include <fcntl.h>
 
 #include "path.h"
 
@@ -32,6 +33,7 @@ void Cmd_sysinfo(char *arg[]);
 void Cmd_help(char *arg[]);
 void Cmd_open (char * tr[]);
 void Cmd_close (char * tr[]);
+void Cmd_listopen (char * tr[]);
 void Cmd_dup (char * tr[]);
 void Cmd_lseek(char *arg[]);
 void Cmd_readstr(char *arg[]);
