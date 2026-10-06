@@ -1,6 +1,7 @@
 #ifndef EJEMPLO_H
 #define EJEMPLO_H
 
+#include "openfileslist.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -9,8 +10,13 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/utsname.h>
-#include "openfileslist.h"
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include "path.h"
 

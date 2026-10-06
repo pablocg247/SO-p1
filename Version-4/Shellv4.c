@@ -42,13 +42,13 @@ struct COMANDO C[]={
    {"close",Cmd_close,""},
    {"listopen",Cmd_listopen,""},
    {"dup",Cmd_dup,""},
-   /*{"lseek", Cmd_lseek, "lseek df pos ref: cambia la posicion\n" "Referencias: SEEK_SET, SEEK_CUR, SEEK_END"},
+   {"lseek", Cmd_lseek, "lseek df pos ref: cambia la posicion\n" "Referencias: SEEK_SET, SEEK_CUR, SEEK_END"},
    {"readstr", Cmd_readstr, "readstr df cont: lee bytes y los muestra como texto"},
    {"writestr", Cmd_writestr, "writestr df str: escribe una cadena sin espacios"},
    {"makefile", Cmd_makefile, "makefile nombre: crea un fichero vacio"},
    {"makedir", Cmd_makedir, "makedir nombre: crea un directorio"},
    {"delete", Cmd_delete, "delete nombre1 nombre2 ...: elimina ficheros, enlaces y directorios vacios"},
-   {"deltree", Cmd_deltree, "deltree nombre1 nombre2 ...: elimina directorios con todo su contenido"},*/
+   {"deltree", Cmd_deltree, "deltree nombre1 nombre2 ...: elimina directorios con todo su contenido"},
    {NULL,NULL,NULL},
   };
 
