@@ -17,6 +17,9 @@
 #include <limits.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <pwd.h>
+#include <grp.h>
+#include <dirent.h>
 
 #include "path.h"
 
@@ -48,6 +51,7 @@ void Cmd_makefile(char *arg[]);
 void Cmd_makedir(char *arg[]);
 void Cmd_delete(char *arg[]);
 void Cmd_deltree(char *arg[]);
-
+void Cmd_listfile(char *arg[]);
+void Cmd_list(char *arg[]);
 
 #endif

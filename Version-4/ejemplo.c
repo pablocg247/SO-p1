@@ -246,6 +246,37 @@ void Cmd_help(char *arg[])
     printf("help: comando '%s' no encontrado\n", arg[0]);
 }
 
+static int LeerNumero(const char *texto, intmax_t *numero)
+{
+    char *fin;
+
+    errno = 0;
+    *numero = strtoimax(texto, &fin, 10);
+
+    if (texto == fin || *fin != '\0' || errno == ERANGE) {
+        fprintf(stderr, "Numero no valido: %s\n", texto);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int LeerDescriptor(const char *texto, int *df)
+{
+    intmax_t numero;
+
+    if (!LeerNumero(texto, &numero))
+        return 0;
+
+    if (numero < 0 || numero > INT_MAX) {
+        fprintf(stderr, "Descriptor fuera de rango\n");
+        return 0;
+    }
+
+    *df = (int)numero;
+    return 1;
+}
+
 void Cmd_open (char * tr[])
 {
 	int i,df, mode=0;
@@ -333,7 +364,7 @@ void Cmd_listopen(char *tr[])
 void Cmd_dup (char * tr[])
 { 
     int df, duplicado, mode;
-    char aux[MAXFILENAME],*p;
+    char aux[MAXFILENAME + 20],*p;
     OpenFile *f;
 
     if (tr[0]==NULL) {
@@ -365,7 +396,7 @@ void Cmd_dup (char * tr[])
 
     snprintf(aux, sizeof(aux), "dup %d (%s)", df, p);
 
-    if ((modo = fcntl(duplicado, F_GETFL)) == -1) {
+    if ((mode = fcntl(duplicado, F_GETFL)) == -1) {
         perror("Imposible obtener modo del descriptor");
         close(duplicado);
         return;
@@ -376,38 +407,6 @@ void Cmd_dup (char * tr[])
     } else {
         printf("Anadida entrada a la tabla ficheros abiertos: descriptor %d (%s)\n", duplicado, aux);
     }
-}
-
-static int LeerNumero(const char *texto, intmax_t *numero)
-{
-    char *fin;
-
-    errno = 0;
-    *numero = strtoimax(texto, &fin, 10);
-
-    if (texto == fin || *fin != '\0' || errno == ERANGE) {
-        fprintf(stderr, "Numero no valido: %s\n", texto);
-        return 0;
-    }
-
-    return 1;
-}
-
-
-static int LeerDescriptor(const char *texto, int *df)
-{
-    intmax_t numero;
-
-    if (!LeerNumero(texto, &numero))
-        return 0;
-
-    if (numero < 0 || numero > INT_MAX) {
-        fprintf(stderr, "Descriptor fuera de rango\n");
-        return 0;
-    }
-
-    *df = (int)numero;
-    return 1;
 }
 
 void Cmd_lseek(char *arg[])
@@ -423,7 +422,7 @@ void Cmd_lseek(char *arg[])
     }
 
     if (!LeerDescriptor(arg[0], &df) ||
-        !LeerNumero(arg[1], &numero))
+        !LeerNumero(arg[1], &numero)){
         return;
 	}
 
@@ -439,12 +438,12 @@ void Cmd_lseek(char *arg[])
     else if (!strcmp(arg[2], "SEEK_CUR"))
         referencia = SEEK_CUR;
     else if (!strcmp(arg[2], "SEEK_END"))
-        referencia = SEEK_END;
+		referencia = SEEK_END;
     else {
         printf("Referencia no valida: usa SEEK_SET, SEEK_CUR o SEEK_END\n");
         return;
-    }
-
+	}
+	
     resultado = lseek(df, posicion, referencia);
 
     if (resultado == (off_t)-1)
@@ -508,13 +507,13 @@ void Cmd_readstr(char *arg[])
         !LeerNumero(arg[1], &numero))
         return;
 
-    if (numero < 0 ||
+    if (numero <= 0 ||
         (uintmax_t)numero > (uintmax_t)SSIZE_MAX ||
         (uintmax_t)numero > (uintmax_t)(SIZE_MAX - 1)) {
         fprintf(stderr, "Cantidad fuera de rango\n");
         return;
     }
-
+	
     cantidad = (size_t)numero;
     texto = malloc(cantidad + 1);
 
@@ -530,7 +529,7 @@ void Cmd_readstr(char *arg[])
     if (leidos == -1) {
         perror("Imposible leer");
     }
-    else {
+    else if (leidos != 0) {
         texto[leidos] = '\0';
         printf("%s\n", texto);
     }
@@ -722,6 +721,234 @@ void Cmd_deltree(char *arg[])
 
         BorrarArbol(ruta);
         free(ruta);
+    }
+}
+
+char LetraTF (mode_t m)
+{
+     switch (m&S_IFMT) { /*and bit a bit con los bits de formato,0170000 */
+        case S_IFSOCK: return 's'; /*socket */
+        case S_IFLNK: return 'l'; /*symbolic link*/
+        case S_IFREG: return '-'; /* fichero normal*/
+        case S_IFBLK: return 'b'; /*block device*/
+        case S_IFDIR: return 'd'; /*directorio */ 
+        case S_IFCHR: return 'c'; /*char device*/
+        case S_IFIFO: return 'p'; /*pipe*/
+        default: return '?'; /*desconocido, no deberia aparecer*/
+     }
+}
+
+char * ConvierteModo3 (mode_t m)
+{
+    char *permisos;
+
+    if ((permisos=(char *) malloc (12))==NULL)
+        return NULL;
+    strcpy (permisos,"---------- ");
+    
+    permisos[0]=LetraTF(m);
+    if (m&S_IRUSR) permisos[1]='r';    /*propietario*/
+    if (m&S_IWUSR) permisos[2]='w';
+    if (m&S_IXUSR) permisos[3]='x';
+    if (m&S_IRGRP) permisos[4]='r';    /*grupo*/
+    if (m&S_IWGRP) permisos[5]='w';
+    if (m&S_IXGRP) permisos[6]='x';
+    if (m&S_IROTH) permisos[7]='r';    /*resto*/
+    if (m&S_IWOTH) permisos[8]='w';
+    if (m&S_IXOTH) permisos[9]='x';
+    if (m&S_ISUID) permisos[3]='s';    /*setuid, setgid y stickybit*/
+    if (m&S_ISGID) permisos[6]='s';
+    if (m&S_ISVTX) permisos[9]='t';
+    
+    return permisos;
+}
+
+int EsDirectorio (char * dir)          /*para saber si algo es directorio o no*/
+{
+  struct stat s;
+  if (lstat(dir,&s)==-1)       /*si no puedo acceder: para mi no es directorio*/
+        return 0;
+  return (S_ISDIR(s.st_mode));
+}
+
+static void ListarFichero(const char *ruta, int long_mode, int link_mode, int acc_mode)
+{
+    struct stat s;
+    char destino[MAXNOMBRE];
+    char enlace_str[MAXNOMBRE + 16] = "";
+
+    if (lstat(ruta, &s) == -1) {
+        perror(ruta);
+        return;
+    }
+
+    if (link_mode && S_ISLNK(s.st_mode)) {
+        ssize_t n = readlink(ruta, destino, sizeof(destino) - 1);
+        if (n != -1) {
+            destino[n] = '\0';
+            snprintf(enlace_str, sizeof(enlace_str), " -> %s", destino);
+        }
+    }
+
+    if (!long_mode) {
+        printf("%9jd %s%s\n", (intmax_t)s.st_size, ruta, enlace_str);
+        return;
+    }
+	
+    time_t t = acc_mode ? s.st_atime : s.st_mtime;
+    struct tm *tm_info = localtime(&t);
+    char fecha[32];	
+    if (tm_info == NULL || strftime(fecha, sizeof(fecha), "%Y/%m/%d-%H:%M", tm_info) == 0) {
+        snprintf(fecha, sizeof(fecha), "desconocida");
+    }
+
+    struct passwd *p = getpwuid(s.st_uid);
+    struct group *g = getgrgid(s.st_gid);
+    const char *user = (p != NULL) ? p->pw_name : "desconocido";
+    const char *group = (g != NULL) ? g->gr_name : "desconocido";
+
+    char *permisos = ConvierteModo3(s.st_mode);
+    if (permisos == NULL) {
+        perror("Imposible convertir permisos");
+        return;
+    }
+
+    printf("%s %2lu (%lu) %s %s %s%9jd %s%s\n",
+           fecha,
+           (unsigned long)s.st_nlink,
+           (unsigned long)s.st_ino,
+           user,
+           group,
+           permisos,
+           (intmax_t)s.st_size,
+           ruta,
+           enlace_str);
+
+    free(permisos);
+}
+
+void Cmd_listfile(char *arg[])
+{
+    int long_mode = 0, link_mode = 0, acc_mode = 0;
+    int i;
+
+    for (i = 0; arg[i] != NULL; i++) {
+        if (!strcmp(arg[i], "-long")) {
+            long_mode = 1;
+        } else if (!strcmp(arg[i], "-link")) {
+            link_mode = 1;
+        } else if (!strcmp(arg[i], "-acc")) {
+            acc_mode = 1;
+        } else {
+            break;
+        }
+    }
+
+    for (; arg[i] != NULL; i++) {
+        ListarFichero(arg[i], long_mode, link_mode, acc_mode);
+    }
+}
+
+static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, int long_m, int link_m, int acc_m)
+{
+    DIR *dir;
+    struct dirent *ent;
+    struct stat s;
+    char ruta[4096];
+
+    // 1. RECURSIVIDAD DESPUÉS (-recb): Primero descendemos, luego imprimimos actual
+    if (recb) {
+        dir = opendir(dirpath);
+        if (dir == NULL) {
+            perror(dirpath);
+            return;
+        }
+        while ((ent = readdir(dir)) != NULL) {
+            if (!hid && ent->d_name[0] == '.') continue;
+            if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
+
+            snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            if (lstat(ruta, &s) == 0 && S_ISDIR(s.st_mode)) {
+                ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
+            }
+        }
+        closedir(dir);
+    }
+
+    // 2. IMPRIMIR EL DIRECTORIO ACTUAL
+    printf("************ %s ************\n", dirpath);
+    dir = opendir(dirpath);
+    if (dir == NULL) {
+        if (!recb) perror(dirpath); // Evitar imprimir el error dos veces
+        return;
+    }
+    while ((ent = readdir(dir)) != NULL) {
+        // Filtrar ocultos si no se ha pasado -hid
+        if (!hid && ent->d_name[0] == '.') continue;
+
+        // Construir la ruta completa: "directorio/fichero"
+        snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+        
+        // ¡Reutilizamos la funcion de listfile!
+        ListarFichero(ruta, long_m, link_m, acc_m);
+    }
+    closedir(dir);
+
+    // 3. RECURSIVIDAD ANTES (-reca): Primero imprimimos actual, luego descendemos
+    if (reca) {
+        dir = opendir(dirpath);
+        if (dir == NULL) return;
+        while ((ent = readdir(dir)) != NULL) {
+            if (!hid && ent->d_name[0] == '.') continue;
+            if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
+
+            snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            if (lstat(ruta, &s) == 0 && S_ISDIR(s.st_mode)) {
+                ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
+            }
+        }
+        closedir(dir);
+    }
+}
+
+void Cmd_list(char *arg[])
+{
+    int reca = 0, recb = 0, hid = 0;
+    int long_mode = 0, link_mode = 0, acc_mode = 0;
+    int i;
+    struct stat s;
+
+    // 1. Parsear todas las opciones posibles (empiezan por '-')
+    for (i = 0; arg[i] != NULL; i++) {
+        if (!strcmp(arg[i], "-reca")) reca = 1;
+        else if (!strcmp(arg[i], "-recb")) recb = 1;
+        else if (!strcmp(arg[i], "-hid")) hid = 1;
+        else if (!strcmp(arg[i], "-long")) long_mode = 1;
+        else if (!strcmp(arg[i], "-link")) link_mode = 1;
+        else if (!strcmp(arg[i], "-acc")) acc_mode = 1;
+        else break; // Fin de flags, comienzan las rutas
+    }
+
+    // 2. Si no se especifican rutas, se asume el directorio actual (".")
+    if (arg[i] == NULL) {
+        ListarDirectorio(".", reca, recb, hid, long_mode, link_mode, acc_mode);
+        return;
+    }
+
+    // 3. Procesar cada ruta indicada por el usuario
+    for (; arg[i] != NULL; i++) {
+        if (lstat(arg[i], &s) == -1) {
+            perror(arg[i]); // El archivo o directorio no existe
+            continue;
+        }
+
+        if (S_ISDIR(s.st_mode)) {
+            // Si es un directorio, lo exploramos
+            ListarDirectorio(arg[i], reca, recb, hid, long_mode, link_mode, acc_mode);
+        } else {
+            // Si le pasan un archivo suelto a "list", se comporta como "listfile"
+            ListarFichero(arg[i], long_mode, link_mode, acc_mode);
+        }
     }
 }
 

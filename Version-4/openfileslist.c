@@ -5,7 +5,7 @@ static LISTASIMPLE L;
 int OpenFilesAdd(int df, int mode,const char name[]){
 	OpenFile * newFile = malloc(sizeof(OpenFile));
 	if (newFile == NULL){
-		errno=ENOEM;
+		errno=ENOMEM;
 		return -1;
 	}
 

@@ -49,6 +49,8 @@ struct COMANDO C[]={
    {"makedir", Cmd_makedir, "makedir nombre: crea un directorio"},
    {"delete", Cmd_delete, "delete nombre1 nombre2 ...: elimina ficheros, enlaces y directorios vacios"},
    {"deltree", Cmd_deltree, "deltree nombre1 nombre2 ...: elimina directorios con todo su contenido"},
+   {"listfile",Cmd_listfile,""},
+   {"list",Cmd_list,""},
    {NULL,NULL,NULL},
   };
 

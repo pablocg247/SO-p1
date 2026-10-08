@@ -13,7 +13,7 @@ typedef struct OpenFile{
 	char name[MAXFILENAME];
 	}OpenFile;
 
-int OpenFilesAdd(int df, int mode, char name[]);
+int OpenFilesAdd(int df, int mode,const char name[]);
 int OpenFilesDel(int df);
 void OpenFilesList();
 OpenFile* OpenFilesGet(int df);
