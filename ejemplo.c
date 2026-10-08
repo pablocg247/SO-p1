@@ -164,10 +164,6 @@ void Cmd_path(char *arg[])
 
 void Cmd_importpath (char *arg[])
 {
-	if (arg[0] != NULL) {
-    	fprintf(stderr, "Uso: importpath (no admite argumentos)\n");
-    	return;
-	}
     PathAddPath();
 }
 
@@ -367,10 +363,7 @@ void Cmd_close(char *tr[])
         perror("Imposible cerrar descriptor");
         return;
     }
-	if(OpenFilesDel(df) == -1) {
-		fprintf(stderr, "Error al eliminar el descriptor\n");
-	}
-
+	OpenFilesDel(df);
 }
 
 void Cmd_listopen(char *tr[])
