@@ -3,6 +3,7 @@
 
 #include "listasimple.h"
 #include <string.h>
+#include <fcntl.h>
 
 #define MAXFILENAME 1024
 
@@ -14,7 +15,6 @@ typedef struct OpenFile{
 
 int OpenFilesAdd(int df, int mode, char name[]);
 int OpenFilesDel(int df);
-void OpenFilesPrint(void *p);
 void OpenFilesList();
 OpenFile* OpenFilesGet(int df);
 void OpenFilesClear();

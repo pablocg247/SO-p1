@@ -71,11 +71,11 @@ void Cmd_autores(char *arg[])
         printf("Pablo Carril Gontan: p.carril\n");
     }
 
-    else if (!strcmp(arg[0], "-l")) {
+    else if (!strcmp(arg[0], "-l") && arg[1] == NULL) {
         printf("mauro.fernandez.perez\n");
         printf("p.carril\n");
     }
-    else if (!strcmp(arg[0], "-n")) {
+    else if (!strcmp(arg[0], "-n") && arg[1] == NULL) {
         printf("Mauro Fernandez Perez\n");
         printf("Pablo Carril Gontan\n");
     }
@@ -161,9 +161,9 @@ void Cmd_date(char *arg[])
 
     if (arg[0] == NULL)
         formato = "%d/%m/%Y %H:%M:%S";
-    else if (!strcmp(arg[0], "-d"))
+    else if (!strcmp(arg[0], "-d") && arg[1] == NULL)
         formato = "%d/%m/%Y";
-    else if (!strcmp(arg[0], "-t"))
+    else if (!strcmp(arg[0], "-t") && arg[1] == NULL)
         formato = "%H:%M:%S";
     else {
         printf("Uso: date [-d|-t]\n");
@@ -196,6 +196,11 @@ void Cmd_sysinfo(char *arg[])
 {
     struct utsname datos;
 
+	if (arg[0] != NULL) {
+    printf("Uso: sysinfo (no admite argumentos)\n");
+    return;
+	}
+
     if (uname(&datos) == -1) {
         perror("Imposible obtener informacion del sistema");
         return;
@@ -217,13 +222,19 @@ struct COMANDO{
 
 extern struct COMANDO C[];
 
-void Cmd_help(char *arg[]){
+void Cmd_help(char *arg[])
+{
     if (arg[0] == NULL) {
         for (int i = 0; C[i].nombre != NULL; i++) {
             printf("%s\n", C[i].help);
         }
         return;
     }
+
+	if (arg[1] != NULL) {
+    printf("Uso: help [comando]\n");
+    return;
+	}
 
     for (int i = 0; C[i].nombre != NULL; i++) {
         if (!strcmp(arg[0], C[i].nombre)) {
@@ -235,7 +246,8 @@ void Cmd_help(char *arg[]){
     printf("help: comando '%s' no encontrado\n", arg[0]);
 }
 
-void Cmd_open (char * tr[]){
+void Cmd_open (char * tr[])
+{
 	int i,df, mode=0;
     
     if (tr[0]==NULL) { 
@@ -243,14 +255,17 @@ void Cmd_open (char * tr[]){
         return;
     }
     for (i=1; tr[i]!=NULL; i++)
-      if (!strcmp(tr[i],"cr")) mode|=O_CREAT;
-      else if (!strcmp(tr[i],"ex")) mode|=O_EXCL;
-      else if (!strcmp(tr[i],"ro")) mode|=O_RDONLY; 
-      else if (!strcmp(tr[i],"wo")) mode|=O_WRONLY;
-      else if (!strcmp(tr[i],"rw")) mode|=O_RDWR;
-      else if (!strcmp(tr[i],"ap")) mode|=O_APPEND;
-      else if (!strcmp(tr[i],"tr")) mode|=O_TRUNC; 
-      else break;
+      	if (!strcmp(tr[i],"cr")) mode|=O_CREAT;
+      	else if (!strcmp(tr[i],"ex")) mode|=O_EXCL;
+      	else if (!strcmp(tr[i],"ro")) mode|=O_RDONLY;
+      	else if (!strcmp(tr[i],"wo")) mode|=O_WRONLY;
+      	else if (!strcmp(tr[i],"rw")) mode|=O_RDWR;
+    	else if (!strcmp(tr[i],"ap")) mode|=O_APPEND;
+    	else if (!strcmp(tr[i],"tr")) mode|=O_TRUNC;
+      	else {
+			fprintf(stderr, "Modo de apertura no valido: %s\n", tr[i]);
+            return;
+	  	}
       
     if ((df=open(tr[0],mode,0777))==-1)
         perror ("Imposible abrir fichero");
@@ -263,55 +278,99 @@ void Cmd_open (char * tr[]){
 	}
 }
 
-void Cmd_close (char *tr[])
-{ 
+//Funcion no terminada al no estar implementada la funcionalidad de mapeado
+static int EstaMapeado(int df)
+{
+    (void)df;
+    return 0;
+}
+
+void Cmd_close(char *tr[])
+{
     int df;
-    
-    if (tr[0]==NULL || (df=atoi(tr[0]))<0) {
-		OpenFilesList();
+    int forzar = 0;
+
+    if (tr[0] == NULL) {
+        OpenFilesList();
         return;
     }
 
-    
-    if (close(df)==-1)
+    if (tr[1] != NULL) {
+        if (!strcmp(tr[1], "-f") && tr[2] == NULL) {
+            forzar = 1;
+        } else {
+            fprintf(stderr, "Uso: close [df [-f]]\n");
+            return;
+        }
+    }
+
+    if (!LeerDescriptor(tr[0], &df)) {
+        return;
+    }
+
+    if (!forzar && EstaMapeado(df)) {
+        fprintf(stderr, "Descriptor %d corresponde a un mapeo activo. Usa 'close %d -f' para forzar\n", df, df);
+        return;
+    }
+
+    if (close(df) == -1) {
         perror("Imposible cerrar descriptor");
-    else
-       OpenFilesDel(df);
+        return;
+    }
+
+    OpenFilesDel(df);
 }
 
 void Cmd_listopen(char *tr[])
 {
+	if (tr[0] != NULL) {
+        fprintf(stderr, "Uso: listopen (no admite argumentos)\n");
+        return;
+    }
     OpenFilesList();
 }
 
 void Cmd_dup (char * tr[])
 { 
-    int df, duplicado;
+    int df, duplicado, mode;
     char aux[MAXFILENAME],*p;
     OpenFile *f;
 
-    if (tr[0]==NULL || (df=atoi(tr[0]))<0) {
+    if (tr[0]==NULL) {
         OpenFilesList();
         return;
     }
-    
-	f = OpenFilesGet(df);
-    if (f == NULL){
-        printf("Imposible duplicar fichero\n");
+
+	if (tr[1] != NULL) {
+        fprintf(stderr, "Uso: dup [df]\n");
         return;
     }
-    p = f->name;
 
-    duplicado = dup(df);
+	if (!LeerDescriptor(tr[0], &df)) {
+        return;
+    }
+
+	duplicado = dup(df);
     if (duplicado == -1) {
         perror("Imposible duplicar descriptor");
         return;
     }
 
-    sprintf(aux, "dup %d (%s)", df, p);
+    f = OpenFilesGet(df);
+    if (f != NULL) {
+        p = f->name;
+    } else {
+        p = "desconocido";
+    }
 
-    int modo = fcntl(duplicado, F_GETFL);
-    if (OpenFilesAdd(duplicado, modo, aux) == -1) {
+    snprintf(aux, sizeof(aux), "dup %d (%s)", df, p);
+
+    if ((modo = fcntl(duplicado, F_GETFL)) == -1) {
+        perror("Imposible obtener modo del descriptor");
+        close(duplicado);
+        return;
+    }
+	if (OpenFilesAdd(duplicado, mode, aux) == -1) {
         perror("Imposible anadir a la lista de ficheros abiertos");
         close(duplicado);
     } else {
@@ -366,6 +425,7 @@ void Cmd_lseek(char *arg[])
     if (!LeerDescriptor(arg[0], &df) ||
         !LeerNumero(arg[1], &numero))
         return;
+	}
 
     posicion = (off_t)numero;
 
