@@ -1,0 +1,16 @@
+Descriptores 0 1 2
+
+Argumentos extra
+
+Mal uso del shell
+
+ficheros no validos en listfile y list
+
+close -f
+
+creation time
+
+campos extra list
+
+CAMBIAR:
+formatos de texto

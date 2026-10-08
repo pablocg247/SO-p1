@@ -27,13 +27,12 @@ int OpenFilesDel(int df){
 		OpenFile* f = (OpenFile*)L[i];
 		if(f->df == df){
 			return BorrarElementoAtPos(L,i);
-			
-			}
+		}
 	}
 	return -1;
 }
 
-void PrintMode(int mode){
+static void PrintMode(int mode){
 	int accmode = mode & O_ACCMODE;
 
 	if (accmode == O_RDONLY) {
@@ -49,7 +48,6 @@ void PrintMode(int mode){
 	if (mode & O_TRUNC)  printf(" O_TRUNC");
 	if (mode & O_APPEND) printf(" O_APPEND");
 }
-
 
 void OpenFilesList(){
 	for(int i = 0; i < MAXLISTASIMPLE && L[i] != NULL; i++){

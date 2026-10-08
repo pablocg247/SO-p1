@@ -60,7 +60,8 @@ void Proceso (char *tr[], int splano)
 /*************COMANDOS DEL SHELL************************/
 void Cmd_fin (char * arg[])  /*todos los cmd_ comparten prototipo*/
 {                            /*reciben los mismos parametros aunque no los usen*/
-    OpenFilesClear();
+	OpenFilesClear();
+	PathClear();
     exit(0);
 }
 
@@ -80,7 +81,7 @@ void Cmd_autores(char *arg[])
         printf("Pablo Carril Gontan\n");
     }
     else {
-        printf("Uso: authors [-l|-n]\n");
+        fprintf(stderr, "Uso: authors [-l|-n]\n");
     }
 }
 
@@ -101,6 +102,10 @@ void Cmd_pplano (char *arg[])
 
 void Cmd_chdir (char * arg[])
 {
+   if (arg[1] != NULL) {
+      fprintf(stderr, "Uso: chdir directorio\n");
+      return;
+   }
    if (arg[0]==NULL)
       MostrarDirActual();
    else if (chdir(arg[0])==-1)
@@ -109,22 +114,32 @@ void Cmd_chdir (char * arg[])
 
 void Cmd_pwd(char * arg[])
 {
+	if (arg[0] != NULL) {
+    fprintf(stderr, "Uso: pwd (no admite argumentos)\n");
+    return;
+	}
     MostrarDirActual();
 }
 
 void Cmd_pid (char * arg[])
 {
-    if (arg[0]==NULL)
+    if (arg[0]==NULL){
         printf ("El pid del proceso es %d\n",(int) getpid());
-    else
-        if (!strcmp (arg[0],"-p"))
+	}
+    else{
+        if (!strcmp (arg[0],"-p")){
             printf ("El pid del proceso padre es %d\n",(int) getppid());
+		}
+		else{
+    		fprintf(stderr, "Uso: pid [-p]\n");
+		}
+	}
 }
 
 void Cmd_where (char *args[])
 {
-    if (args[0]==NULL)
-        printf ("uso: where ejecutable. Indica donde ejecutable está en el path\n");
+    if (args[0]==NULL || args[1]!=NULL)
+        fprintf(stderr, "Uso: where ejecutable. Indica donde ejecutable está en el path\n");
     else
         printf ("%s\n",Ejecutable (args[0]));
 }
@@ -144,11 +159,15 @@ void Cmd_path(char *arg[])
         PathClear ();
     else if (!strcmp(arg[0],"-import"))
         PathAddPath ();
-    else printf ("Opciones validas: -add|-del|-show|-clear|-import\n");
+    else fprintf (stderr, "Uso: path [-add|-del|-show|-clear|-import]\n");
 } 
 
 void Cmd_importpath (char *arg[])
 {
+	if (arg[0] != NULL) {
+    fprintf(stderr, "Uso: importpath (no admite argumentos)\n");
+    return;
+	}
     PathAddPath();
 }
 
@@ -166,7 +185,7 @@ void Cmd_date(char *arg[])
     else if (!strcmp(arg[0], "-t") && arg[1] == NULL)
         formato = "%H:%M:%S";
     else {
-        printf("Uso: date [-d|-t]\n");
+        fprintf(stderr, "Uso: date [-d|-t]\n");
         return;
     }
 
@@ -197,7 +216,7 @@ void Cmd_sysinfo(char *arg[])
     struct utsname datos;
 
 	if (arg[0] != NULL) {
-    printf("Uso: sysinfo (no admite argumentos)\n");
+    fprintf(stderr, "Uso: sysinfo (no admite argumentos)\n");
     return;
 	}
 
@@ -232,7 +251,7 @@ void Cmd_help(char *arg[])
     }
 
 	if (arg[1] != NULL) {
-    printf("Uso: help [comando]\n");
+    fprintf(stderr, "Uso: help [comando]\n");
     return;
 	}
 
@@ -243,7 +262,7 @@ void Cmd_help(char *arg[])
         }
     }
 
-    printf("help: comando '%s' no encontrado\n", arg[0]);
+    fprintf(stderr, "help: comando '%s' no encontrado\n", arg[0]);
 }
 
 static int LeerNumero(const char *texto, intmax_t *numero)
@@ -348,8 +367,10 @@ void Cmd_close(char *tr[])
         perror("Imposible cerrar descriptor");
         return;
     }
+	if(OpenFilesDel(df) == -1) {
+		fprintf(stderr, "Error al eliminar el descriptor\n");
+	}
 
-    OpenFilesDel(df);
 }
 
 void Cmd_listopen(char *tr[])
@@ -417,7 +438,7 @@ void Cmd_lseek(char *arg[])
 
     if (arg[0] == NULL || arg[1] == NULL ||
         arg[2] == NULL || arg[3] != NULL) {
-        printf("Uso: lseek df pos SEEK_SET|SEEK_CUR|SEEK_END\n");
+        fprintf(stderr, "Uso: lseek df pos SEEK_SET|SEEK_CUR|SEEK_END\n");
         return;
     }
 
@@ -440,7 +461,7 @@ void Cmd_lseek(char *arg[])
     else if (!strcmp(arg[2], "SEEK_END"))
 		referencia = SEEK_END;
     else {
-        printf("Referencia no valida: usa SEEK_SET, SEEK_CUR o SEEK_END\n");
+        fprintf(stderr, "Referencia no valida: usa SEEK_SET, SEEK_CUR o SEEK_END\n");
         return;
 	}
 	
@@ -459,7 +480,7 @@ void Cmd_writestr(char *arg[])
     ssize_t escritos;
 
     if (arg[0] == NULL || arg[1] == NULL || arg[2] != NULL) {
-        printf("Uso: writestr df str (str sin espacios)\n");
+        fprintf(stderr, "Uso: writestr df str (str sin espacios)\n");
         return;
     }
 
@@ -499,7 +520,7 @@ void Cmd_readstr(char *arg[])
     char *texto;
 
     if (arg[0] == NULL || arg[1] == NULL || arg[2] != NULL) {
-        printf("Uso: readstr df cont\n");
+        fprintf(stderr, "Uso: readstr df cont\n");
         return;
     }
 
@@ -543,11 +564,11 @@ void Cmd_makefile(char *arg[])
     int df;
 
     if (arg[0] == NULL || arg[1] != NULL) {
-        printf("Uso: makefile nombre\n");
+        fprintf(stderr, "Uso: makefile nombre\n");
         return;
     }
 
-    df = open(arg[0], O_WRONLY | O_CREAT | O_EXCL, 0666);
+    df = open(arg[0], O_WRONLY | O_CREAT | O_EXCL, 0777);
 
     if (df == -1) {
         perror(arg[0]);
@@ -562,7 +583,7 @@ void Cmd_makefile(char *arg[])
 void Cmd_makedir(char *arg[])
 {
     if (arg[0] == NULL || arg[1] != NULL) {
-        printf("Uso: makedir nombre\n");
+        fprintf(stderr, "Uso: makedir nombre\n");
         return;
     }
 
@@ -763,15 +784,7 @@ char * ConvierteModo3 (mode_t m)
     return permisos;
 }
 
-int EsDirectorio (char * dir)          /*para saber si algo es directorio o no*/
-{
-  struct stat s;
-  if (lstat(dir,&s)==-1)       /*si no puedo acceder: para mi no es directorio*/
-        return 0;
-  return (S_ISDIR(s.st_mode));
-}
-
-static void ListarFichero(const char *ruta, int long_mode, int link_mode, int acc_mode)
+static void ListarFichero(const char *ruta, const char *nombre, int long_mode, int link_mode, int acc_mode)
 {
     struct stat s;
     char destino[MAXNOMBRE];
@@ -791,7 +804,7 @@ static void ListarFichero(const char *ruta, int long_mode, int link_mode, int ac
     }
 
     if (!long_mode) {
-        printf("%9jd %s%s\n", (intmax_t)s.st_size, ruta, enlace_str);
+        printf("%9jd %s%s\n", (intmax_t)s.st_size, nombre, enlace_str);
         return;
     }
 	
@@ -821,7 +834,7 @@ static void ListarFichero(const char *ruta, int long_mode, int link_mode, int ac
            group,
            permisos,
            (intmax_t)s.st_size,
-           ruta,
+           nombre,
            enlace_str);
 
     free(permisos);
@@ -845,18 +858,25 @@ void Cmd_listfile(char *arg[])
     }
 
     for (; arg[i] != NULL; i++) {
-        ListarFichero(arg[i], long_mode, link_mode, acc_mode);
+        ListarFichero(arg[i], arg[i], long_mode, link_mode, acc_mode);
     }
 }
+
+int EsDirectorio (char * dir)          /*para saber si algo es directorio o no*/
+{
+  struct stat s;
+  if (lstat(dir,&s)==-1)       /*si no puedo acceder: para mi no es directorio*/
+        return 0;
+  return (S_ISDIR(s.st_mode));
+}
+
 
 static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, int long_m, int link_m, int acc_m)
 {
     DIR *dir;
     struct dirent *ent;
-    struct stat s;
     char ruta[4096];
 
-    // 1. RECURSIVIDAD DESPUÉS (-recb): Primero descendemos, luego imprimimos actual
     if (recb) {
         dir = opendir(dirpath);
         if (dir == NULL) {
@@ -868,33 +888,26 @@ static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, i
             if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
 
             snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
-            if (lstat(ruta, &s) == 0 && S_ISDIR(s.st_mode)) {
+            if (EsDirectorio(ruta)) {
                 ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
             }
         }
         closedir(dir);
     }
 
-    // 2. IMPRIMIR EL DIRECTORIO ACTUAL
     printf("************ %s ************\n", dirpath);
     dir = opendir(dirpath);
     if (dir == NULL) {
-        if (!recb) perror(dirpath); // Evitar imprimir el error dos veces
+        if (!recb) perror(dirpath);
         return;
     }
     while ((ent = readdir(dir)) != NULL) {
-        // Filtrar ocultos si no se ha pasado -hid
         if (!hid && ent->d_name[0] == '.') continue;
-
-        // Construir la ruta completa: "directorio/fichero"
         snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
-        
-        // ¡Reutilizamos la funcion de listfile!
-        ListarFichero(ruta, long_m, link_m, acc_m);
+        ListarFichero(ruta, ent->d_name, long_m, link_m, acc_m);
     }
     closedir(dir);
 
-    // 3. RECURSIVIDAD ANTES (-reca): Primero imprimimos actual, luego descendemos
     if (reca) {
         dir = opendir(dirpath);
         if (dir == NULL) return;
@@ -903,7 +916,7 @@ static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, i
             if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
 
             snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
-            if (lstat(ruta, &s) == 0 && S_ISDIR(s.st_mode)) {
+            if (EsDirectorio(ruta)) {
                 ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
             }
         }
@@ -916,9 +929,7 @@ void Cmd_list(char *arg[])
     int reca = 0, recb = 0, hid = 0;
     int long_mode = 0, link_mode = 0, acc_mode = 0;
     int i;
-    struct stat s;
 
-    // 1. Parsear todas las opciones posibles (empiezan por '-')
     for (i = 0; arg[i] != NULL; i++) {
         if (!strcmp(arg[i], "-reca")) reca = 1;
         else if (!strcmp(arg[i], "-recb")) recb = 1;
@@ -926,28 +937,24 @@ void Cmd_list(char *arg[])
         else if (!strcmp(arg[i], "-long")) long_mode = 1;
         else if (!strcmp(arg[i], "-link")) link_mode = 1;
         else if (!strcmp(arg[i], "-acc")) acc_mode = 1;
-        else break; // Fin de flags, comienzan las rutas
+        else break;
     }
 
-    // 2. Si no se especifican rutas, se asume el directorio actual (".")
+	if (reca && recb) {
+        fprintf(stderr, "Usa solo una opcion recursiva: -reca o -recb\n");
+        return;
+    }
+
     if (arg[i] == NULL) {
         ListarDirectorio(".", reca, recb, hid, long_mode, link_mode, acc_mode);
         return;
     }
 
-    // 3. Procesar cada ruta indicada por el usuario
     for (; arg[i] != NULL; i++) {
-        if (lstat(arg[i], &s) == -1) {
-            perror(arg[i]); // El archivo o directorio no existe
-            continue;
-        }
-
-        if (S_ISDIR(s.st_mode)) {
-            // Si es un directorio, lo exploramos
+        if (EsDirectorio(arg[i])) {
             ListarDirectorio(arg[i], reca, recb, hid, long_mode, link_mode, acc_mode);
         } else {
-            // Si le pasan un archivo suelto a "list", se comporta como "listfile"
-            ListarFichero(arg[i], long_mode, link_mode, acc_mode);
+            ListarFichero(arg[i], arg[i], long_mode, link_mode, acc_mode);
         }
     }
 }
