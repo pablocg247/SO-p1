@@ -90,7 +90,7 @@ int TrocearCadena(char * cadena, char * trozos[])
 }	
 void ProcesarEntrada(char * entrada)
 {
-   char *tr[MAXENTRADA/2];
+   char *tr[(MAXENTRADA/2) + 1];
    if (TrocearCadena(entrada,tr)==0) /*no hay nada*/
 	return;
    DecidirComando(tr);
@@ -105,12 +105,20 @@ int  main(int argc, char *argv[], char *ent[])
    else if (!strcmp(argv[1],"-p"))
         Cmd_importpath(NULL);
 
-   while (1){
-      	printf ("-> ");
-      	if (fgets(entrada, MAXENTRADA, stdin) == NULL) {
-    		printf("\n");
-			break; /* o exit(0); */
+   while (1) {
+		printf("-> ");
+		if (fgets(entrada, MAXENTRADA, stdin) == NULL) {
+			printf("\n");
+			break;
 		}
-      	ProcesarEntrada(entrada);
+
+		if (strchr(entrada, '\n') == NULL && !feof(stdin)) {
+			int c;
+			while ((c = getchar()) != '\n' && c != EOF);
+			fprintf(stderr, "Error: comando demasiado largo (maximo %d caracteres)\n", MAXENTRADA - 1);
+			continue;
+		}
+
+		ProcesarEntrada(entrada);
    }
 }

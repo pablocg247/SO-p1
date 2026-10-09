@@ -18,11 +18,14 @@ void ImprimirDir (void *dir)      /*la funcion que imprime un elemento*/
 int PathAdd (char * dir)
 {
    char *s;
+   int i;
    if (BuscarElemento(S,dir,Comparar)!=-1) /*el elemento ya esta en el path*/
         return 0;
    if ((s=strdup(dir))==NULL)  /*no puede asignarse*/
         return -1;
-   return AniadirElemento (S,(void *)s);
+   if ((i = AniadirElemento (S,(void *)s)) == -1)
+	    free(s);
+   return i;
 }
 
 void PathClear(void)
@@ -59,6 +62,7 @@ int PathAddPath (void)
     if ((p=getenv("PATH"))==NULL)
         return 0;
     strncpy(aux,p,MAXPATH-1);
+	aux[MAXPATH-1]='\0';
     if ((p=strtok(aux,":"))!=NULL)
         PathAdd(p);
     while ((p=strtok(NULL,":"))!=NULL){

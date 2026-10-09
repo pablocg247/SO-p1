@@ -87,6 +87,10 @@ void Cmd_autores(char *arg[])
 
 void Cmd_exec (char *arg[])
 {
+  if (arg[0] == NULL){
+    fprintf(stderr, "Uso: exec comando [argumentos...]\n");
+    return;
+  }
   if (execv(Ejecutable(arg[0]),arg)==-1)
 	perror ("Imposible ejecutar");
 }
@@ -100,16 +104,17 @@ void Cmd_pplano (char *arg[])
   Proceso(arg,0);
 }
 
-void Cmd_chdir (char * arg[])
+void Cmd_chdir (char *arg[])
 {
-   if (arg[1] != NULL) {
-      fprintf(stderr, "Uso: chdir directorio\n");
-      return;
-   }
-   if (arg[0]==NULL)
-      MostrarDirActual();
-   else if (chdir(arg[0])==-1)
-      perror("Imposible cambiar directorio");
+    if (arg[0] == NULL) {
+        MostrarDirActual();
+    }
+    else if (arg[1] != NULL) {
+        fprintf(stderr, "Uso: chdir [directorio]\n");
+    }
+    else if (chdir(arg[0]) == -1) {
+        perror("Imposible cambiar directorio");
+    }
 }
 
 void Cmd_pwd(char * arg[])
@@ -756,23 +761,23 @@ char * ConvierteModo3 (mode_t m)
 {
     char *permisos;
 
-    if ((permisos=(char *) malloc (12))==NULL)
+    if ((permisos = (char *) malloc(12)) == NULL)
         return NULL;
-    strcpy (permisos,"---------- ");
-    
-    permisos[0]=LetraTF(m);
-    if (m&S_IRUSR) permisos[1]='r';    /*propietario*/
-    if (m&S_IWUSR) permisos[2]='w';
-    if (m&S_IXUSR) permisos[3]='x';
-    if (m&S_IRGRP) permisos[4]='r';    /*grupo*/
-    if (m&S_IWGRP) permisos[5]='w';
-    if (m&S_IXGRP) permisos[6]='x';
-    if (m&S_IROTH) permisos[7]='r';    /*resto*/
-    if (m&S_IWOTH) permisos[8]='w';
-    if (m&S_IXOTH) permisos[9]='x';
-    if (m&S_ISUID) permisos[3]='s';    /*setuid, setgid y stickybit*/
-    if (m&S_ISGID) permisos[6]='s';
-    if (m&S_ISVTX) permisos[9]='t';
+    strcpy(permisos, "---------- ");
+
+    permisos[0] = LetraTF(m);
+    if (m & S_IRUSR) permisos[1] = 'r';
+    if (m & S_IWUSR) permisos[2] = 'w';
+    if (m & S_IXUSR) permisos[3] = 'x';
+    if (m & S_IRGRP) permisos[4] = 'r';
+    if (m & S_IWGRP) permisos[5] = 'w';
+    if (m & S_IXGRP) permisos[6] = 'x';
+    if (m & S_IROTH) permisos[7] = 'r';
+    if (m & S_IWOTH) permisos[8] = 'w';
+    if (m & S_IXOTH) permisos[9] = 'x';
+    if (m & S_ISUID) permisos[3] = (m & S_IXUSR) ? 's' : 'S';
+    if (m & S_ISGID) permisos[6] = (m & S_IXGRP) ? 's' : 'S';
+    if (m & S_ISVTX) permisos[9] = (m & S_IXOTH) ? 't' : 'T';
     
     return permisos;
 }
@@ -780,8 +785,8 @@ char * ConvierteModo3 (mode_t m)
 static void ListarFichero(const char *ruta, const char *nombre, int long_mode, int link_mode, int acc_mode)
 {
     struct stat s;
-    char destino[MAXNOMBRE];
-    char enlace_str[MAXNOMBRE + 16] = "";
+    char destino[PATH_MAX];
+    char enlace_str[PATH_MAX + 5] = "";
 
     if (lstat(ruta, &s) == -1) {
         perror(ruta);
@@ -793,7 +798,7 @@ static void ListarFichero(const char *ruta, const char *nombre, int long_mode, i
         if (n != -1) {
             destino[n] = '\0';
             snprintf(enlace_str, sizeof(enlace_str), " -> %s", destino);
-        }
+        }else perror(ruta);
     }
 
     if (!long_mode) {
@@ -801,7 +806,7 @@ static void ListarFichero(const char *ruta, const char *nombre, int long_mode, i
         return;
     }
 	
-    time_t t = acc_mode ? s.st_atime : s.st_mtime;
+    time_t t = acc_mode ? s.st_atime : s.st_ctime;
     struct tm *tm_info = localtime(&t);
     char fecha[32];	
     if (tm_info == NULL || strftime(fecha, sizeof(fecha), "%Y/%m/%d-%H:%M", tm_info) == 0) {
@@ -868,6 +873,7 @@ static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, i
     DIR *dir;
     struct dirent *ent;
     char ruta[4096];
+    int len;
 
     if (recb) {
         dir = opendir(dirpath);
@@ -875,16 +881,28 @@ static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, i
             perror(dirpath);
             return;
         }
-        while ((ent = readdir(dir)) != NULL) {
+        while (1) {
+            errno = 0;
+            ent = readdir(dir);
+            if (ent == NULL) {
+                if (errno != 0) perror(dirpath);
+                break;
+            }
+
             if (!hid && ent->d_name[0] == '.') continue;
             if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
 
-            snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            len = snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            if (len >= (int)sizeof(ruta)) {
+                fprintf(stderr, "Ruta demasiado larga: %s/%s\n", dirpath, ent->d_name);
+                continue;
+            }
+
             if (EsDirectorio(ruta)) {
                 ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
             }
         }
-        closedir(dir);
+        if (closedir(dir) == -1) perror(dirpath);
     }
 
     printf("************ %s ************\n", dirpath);
@@ -893,26 +911,54 @@ static void ListarDirectorio(const char *dirpath, int reca, int recb, int hid, i
         if (!recb) perror(dirpath);
         return;
     }
-    while ((ent = readdir(dir)) != NULL) {
+    while (1) {
+        errno = 0;
+        ent = readdir(dir);
+        if (ent == NULL) {
+            if (errno != 0) perror(dirpath);
+            break;
+        }
+
         if (!hid && ent->d_name[0] == '.') continue;
-        snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+
+        len = snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+        if (len >= (int)sizeof(ruta)) {
+            fprintf(stderr, "Ruta demasiado larga: %s/%s\n", dirpath, ent->d_name);
+            continue;
+        }
+
         ListarFichero(ruta, ent->d_name, long_m, link_m, acc_m);
     }
-    closedir(dir);
+    if (closedir(dir) == -1) perror(dirpath);
 
     if (reca) {
         dir = opendir(dirpath);
-        if (dir == NULL) return;
-        while ((ent = readdir(dir)) != NULL) {
+        if (dir == NULL) {
+            perror(dirpath);
+            return;
+        }
+        while (1) {
+            errno = 0;
+            ent = readdir(dir);
+            if (ent == NULL) {
+                if (errno != 0) perror(dirpath);
+                break;
+            }
+
             if (!hid && ent->d_name[0] == '.') continue;
             if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
 
-            snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            len = snprintf(ruta, sizeof(ruta), "%s/%s", dirpath, ent->d_name);
+            if (len >= (int)sizeof(ruta)) {
+                fprintf(stderr, "Ruta demasiado larga: %s/%s\n", dirpath, ent->d_name);
+                continue;
+            }
+
             if (EsDirectorio(ruta)) {
                 ListarDirectorio(ruta, reca, recb, hid, long_m, link_m, acc_m);
             }
         }
-        closedir(dir);
+        if (closedir(dir) == -1) perror(dirpath);
     }
 }
 
