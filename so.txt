@@ -1,0 +1,5 @@
+fecha en MemListPrint()
+
+Usar las funciones auxiliares
+
+IO codigo ayuda
