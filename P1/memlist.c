@@ -111,6 +111,8 @@ int MemListDelByAddr(void *addr)
 void MemListPrint(MemType filter)
 {
     const char *tipo_cabecera = "";
+    char fecha[32];
+    struct tm tm_info;
 
     if (filter == MEM_MALLOC)
         tipo_cabecera = " malloc";
@@ -128,14 +130,8 @@ void MemListPrint(MemType filter)
         if (filter != MEM_ALL && b->type != filter)
             continue;
 
-        /* Formatear la fecha usando ctime sin el salto de linea final */
-        char fecha[32] = "desconocida";
-        char *ct = ctime(&b->time);
-        if (ct != NULL) {
-            /* ctime devuelve "Day Mon DD HH:MM:SS YYYY\n\0";
-               en el shell de referencia se salta el dia de la semana (+4) y el anio */
-            snprintf(fecha, sizeof(fecha), "%.12s", ct + 4);
-        }
+        localtime_r(&b->time, &tm_info);
+        strftime(fecha, sizeof(fecha), "%b %d %H:%M", &tm_info);
 
         printf("%20p  %15llu %s",
                b->addr,

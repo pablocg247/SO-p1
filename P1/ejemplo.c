@@ -62,7 +62,7 @@ void Cmd_fin (char * arg[])  /*todos los cmd_ comparten prototipo*/
 {                            /*reciben los mismos parametros aunque no los usen*/
 	OpenFilesClear();
 	PathClear();
-    MemlistClear();
+    MemListClear();
     exit(0);
 }
 
@@ -311,122 +311,104 @@ static int LeerCantidadMemoria(const char *texto, size_t *cantidad)
 }
 
 
-static void IORead(char *arg[])
+static ssize_t LeerFichero(char *f, void *p, size_t cont)
 {
-    int df;
-    void *direccion;
-    unsigned char *destino;
-    size_t cantidad, total = 0;
-    ssize_t leidos;
+    struct stat s;
+    ssize_t n;
+    int df, aux;
 
-    if (arg[0] == NULL || arg[1] == NULL || arg[2] == NULL) {
-        printf("Uso: i-o read fichero addr cont\n");
-        return;
+    if (stat(f, &s) == -1 || (df = open(f, O_RDONLY)) == -1)
+        return -1;
+    if (cont == (size_t)-1) /* si pasamos -1 como bytes a leer lo leemos entero */
+        cont = (size_t)s.st_size;
+    if ((n = read(df, p, cont)) == -1) {
+        aux = errno;
+        close(df);
+        errno = aux;
+        return -1;
     }
-    if (!LeerDireccionMemoria(arg[1], &direccion) ||
-        !LeerCantidadMemoria(arg[2], &cantidad))
-        return;
-
-    df = open(arg[0], O_RDONLY);
-    if (df == -1) {
-        perror("Imposible abrir fichero");
-        return;
-    }
-    destino = direccion;
-    while (total < cantidad) {
-        size_t pendiente = cantidad - total;
-        if (pendiente > (size_t)SSIZE_MAX)
-            pendiente = (size_t)SSIZE_MAX;
-
-        leidos = read(df, destino + total, pendiente);
-        if (leidos == -1) {
-            if (errno == EINTR)
-                continue;
-            perror("Imposible leer fichero");
-            close(df);
-            return;
-        }
-        if (leidos == 0)
-            break;
-        total += (size_t)leidos;
-    }
-    if (close(df) == -1) {
-        perror("Imposible cerrar fichero");
-        return;
-    }
-    printf("Leidos %zu bytes de %s en %p\n", total, arg[0], direccion);
+    close(df);
+    return n;
 }
 
-static void IOWrite(char *arg[])
+static void do_IOReadFile(char *ar[])
 {
-    int sobrescribir = 0, i = 0, df, modo;
-    void *direccion;
-    const unsigned char *origen;
-    size_t cantidad, total = 0;
-    ssize_t escritos;
+    void *p;
+    size_t cont = (size_t)-1; /* si no pasamos tamano se lee entero */
+    ssize_t n;
 
-    if (arg[0] != NULL && !strcmp(arg[0], "-o")) {
-        sobrescribir = 1;
-        i = 1;
-    }
-    if (arg[i] == NULL || arg[i + 1] == NULL || arg[i + 2] == NULL) {
-        printf("Uso: i-o write [-o] fichero addr cont\n");
+    if (ar[0] == NULL || ar[1] == NULL) {
+        printf("faltan parametros\n");
         return;
     }
-    if (!LeerDireccionMemoria(arg[i + 1], &direccion) ||
-        !LeerCantidadMemoria(arg[i + 2], &cantidad))
+    if (!LeerDireccionMemoria(ar[1], &p))
+        return;
+    if (ar[2] != NULL && !LeerCantidadMemoria(ar[2], &cont))
         return;
 
-    modo = O_WRONLY | O_CREAT;
-    modo |= sobrescribir ? O_TRUNC : O_EXCL;
-    df = open(arg[i], modo, 0666);
-    if (df == -1) {
-        perror("Imposible abrir fichero");
-        return;
-    }
-    origen = direccion;
-    while (total < cantidad) {
-        size_t pendiente = cantidad - total;
-        if (pendiente > (size_t)SSIZE_MAX)
-            pendiente = (size_t)SSIZE_MAX;
+    if ((n = LeerFichero(ar[0], p, cont)) == -1)
+        perror("Imposible leer fichero");
+    else
+        printf("leidos %lld bytes de %s en %p\n", (long long)n, ar[0], p);
+}
 
-        escritos = write(df, origen + total, pendiente);
-        if (escritos == -1) {
-            if (errno == EINTR)
-                continue;
-            perror("Imposible escribir fichero");
-            close(df);
-            return;
-        }
-        if (escritos == 0) {
-            printf("No se pudo completar la escritura\n");
-            close(df);
-            return;
-        }
-        total += (size_t)escritos;
+static ssize_t EscribirFichero(char *f, void *p, size_t cont, int overwrite)
+{
+    ssize_t n;
+    int df, aux, flags = O_CREAT | O_EXCL | O_WRONLY;
+
+    if (overwrite)
+        flags = O_CREAT | O_WRONLY | O_TRUNC;
+
+    if ((df = open(f, flags, 0777)) == -1)
+        return -1;
+    if ((n = write(df, p, cont)) == -1) {
+        aux = errno;
+        close(df);
+        errno = aux;
+        return -1;
     }
-    if (close(df) == -1) {
-        perror("Imposible cerrar fichero");
+    close(df);
+    return n;
+}
+
+static void do_IOWriteFile(char *ar[])
+{
+    void *p;
+    size_t cont;
+    ssize_t n;
+    int overwrite = 0;
+
+    if (ar[0] != NULL && !strcmp(ar[0], "-o")) {
+        overwrite = 1;
+        ar++;
+    }
+    if (ar[0] == NULL || ar[1] == NULL || ar[2] == NULL) {
+        printf("faltan parametros\n");
         return;
     }
-    printf("Escritos %zu bytes desde %p en %s\n", total, direccion, arg[i]);
+    if (!LeerDireccionMemoria(ar[1], &p) ||
+        !LeerCantidadMemoria(ar[2], &cont))
+        return;
+
+    if ((n = EscribirFichero(ar[0], p, cont, overwrite)) == -1)
+        perror("Imposible escribir fichero");
+    else
+        printf("escritos %lld bytes en %s desde %p\n", (long long)n, ar[0], p);
 }
 
 void Cmd_io(char *arg[])
 {
     if (arg[0] == NULL) {
-        printf("Uso: i-o read fichero addr cont\n");
-        printf("     i-o write [-o] fichero addr cont\n");
+        printf("uso: i-o [read|write] ......\n");
         return;
     }
     if (!strcmp(arg[0], "read"))
-        IORead(arg + 1);
+        do_IOReadFile(arg + 1);
     else if (!strcmp(arg[0], "write"))
-        IOWrite(arg + 1);
-    else {
-        printf("Uso: i-o read fichero addr cont\n");
-        printf("     i-o write [-o] fichero addr cont\n");
-    }
+        do_IOWriteFile(arg + 1);
+    else
+        printf("uso: i-o [read|write] ......\n");
 }
 
 void Cmd_open(char *tr[])
@@ -503,7 +485,7 @@ void Cmd_close(char *tr[])
     forzar = tr[1] != NULL && !strcmp(tr[1], "-f");
 
     if (!forzar && EstaMapeado(df)) {
-        printf("Descriptor %d corresponde a un mapeo activo. " "Usa 'close %d -f' para forzar\n", df, df);
+        printf("Descriptor %d corresponde a un fichero mapeado. " "Usa -f para cerrarlo\n", df);
         return;
     }
 
@@ -1541,7 +1523,7 @@ static void do_AllocateCreateShared(char *tr[])
     }
     cl = (key_t)num_clave;
 
-    if (!LeerCantidadMemoria(tr[0], &tam))
+    if (!LeerCantidadMemoria(tr[1], &tam))
         return;
 
     if (tam == 0) {
@@ -1628,7 +1610,9 @@ static void do_DeallocateMalloc(char *tr[])
         MemListPrint(MEM_MALLOC);
         return;
     }
-    tam = (size_t)strtoull(tr[0], NULL, 10);
+    if (!LeerCantidadMemoria(tr[0], &tam))
+        return;
+
     b = MemListGetByMallocSize(tam);
     if (b == NULL) {
         printf("No hay bloque de ese tamano asignado con malloc\n");
@@ -1642,19 +1626,30 @@ static void do_DeallocateMalloc(char *tr[])
 static void do_DeallocateShared(char *tr[])
 {
     key_t cl;
+    intmax_t num_clave;
     MemBlock *b;
 
     if (tr[0] == NULL) {
         MemListPrint(MEM_SHARED);
         return;
     }
-    cl = (key_t)strtoul(tr[0], NULL, 10);
+    if (!LeerNumero(tr[0], &num_clave))
+        return;
+    if (num_clave < INT_MIN || num_clave > INT_MAX) {
+        printf("Clave fuera de rango valido\n");
+        return;
+    }
+    cl = (key_t)num_clave;
+
     b = MemListGetBySharedKey(cl);
     if (b == NULL) {
         printf("No hay bloque de esa clave mapeado en el proceso\n");
         return;
     }
-    shmdt(b->addr);
+    if (shmdt(b->addr) == -1) {
+        printf("Imposible separar memoria compartida: %s\n", strerror(errno));
+        return;
+    }
     if (MemListDelByAddr(b->addr) == -1)
         printf("Imposible quitar de lista: %s\n", strerror(errno));
 }
@@ -1677,17 +1672,34 @@ static void do_DeallocateMmap(char *tr[])
                b->name, b->addr, strerror(errno));
         return;
     }
-    if (MemListDelByAddr(b->addr) == -1)
+	if (close(b->df) == -1) {
+        perror("Imposible cerrar descriptor");
+	}
+    OpenFilesDel(b->df);
+    if (MemListDelByAddr(b->addr) == -1){
         printf("Imposible quitar de lista: %s\n", strerror(errno));
+	}
 }
 
 static void do_SharedDelkey(char *args[])
 {
     key_t clave;
+    intmax_t num_clave;
     int id;
     char *key = args[0];
 
-    if (key == NULL || (clave = (key_t)strtoul(key, NULL, 10)) == IPC_PRIVATE) {
+    if (key == NULL) {
+        printf("      delkey necesita clave_valida\n");
+        return;
+    }
+    if (!LeerNumero(key, &num_clave))
+        return;
+    if (num_clave < INT_MIN || num_clave > INT_MAX) {
+        printf("Clave fuera de rango valido\n");
+        return;
+    }
+    clave = (key_t)num_clave;
+    if (clave == IPC_PRIVATE) {
         printf("      delkey necesita clave_valida\n");
         return;
     }
@@ -1699,18 +1711,15 @@ static void do_SharedDelkey(char *args[])
         perror("shmctl: imposible eliminar memoria compartida");
 }
 
-static void *CadenatoPointer(char *s)
-{
-    void *p = NULL;
-    sscanf(s, "%p", &p);
-    return p;
-}
-
 static void do_DeallocateAddr(char *str_addr)
 {
-    void *p = CadenatoPointer(str_addr);
-    MemBlock *b = MemListGetByAddr(p);
+    void *p;
+    MemBlock *b;
 
+    if (!LeerDireccionMemoria(str_addr, &p))
+        return;
+
+    b = MemListGetByAddr(p);
     if (b == NULL) {
         printf("Direccion %p no asignada con malloc, shared o mmap\n", p);
         return;
@@ -1718,13 +1727,19 @@ static void do_DeallocateAddr(char *str_addr)
     if (b->type == MEM_MALLOC) {
         free(b->addr);
     } else if (b->type == MEM_SHARED) {
-        shmdt(b->addr);
+        if (shmdt(b->addr) == -1) {
+            printf("Imposible separar memoria compartida: %s\n", strerror(errno));
+            return;
+        }
     } else if (b->type == MEM_MMAP) {
         if (munmap(b->addr, b->size) == -1) {
             printf("Imposible desmapear %s en %p: %s\n",
                    b->name, b->addr, strerror(errno));
             return;
         }
+		if (close(b->df) == -1)
+            perror("Imposible cerrar descriptor");
+        OpenFilesDel(b->df);
     }
     if (MemListDelByAddr(b->addr) == -1)
         printf("Imposible quitar de lista: %s\n", strerror(errno));
@@ -1751,16 +1766,21 @@ void Cmd_deallocate(char *tr[])
 /* Variables globales (inicializadas y no inicializadas) */
 int var_global_init1 = 10;
 int var_global_init2 = 20;
+int var_global_init3 = 30;
 int var_global_ni1;
+int var_global_ni2;
+int var_global_ni3;
 
 /* Variables estáticas (inicializadas y no inicializadas) */
 static int var_static_init1 = 30;
 static int var_static_init2 = 40;
+static int var_static_init3 = 50;
 static int var_static_ni1;
+static int var_static_ni2;
+static int var_static_ni3;
 
 static void Do_Vars(void)
 {
-    /* Variables locales / automáticas (inicializadas y no inicializadas) */
     auto int var_local_init1 = 1;
     auto int var_local_init2 = 2;
     auto int var_local_ni1;
@@ -1768,13 +1788,13 @@ static void Do_Vars(void)
     printf("Variables locales   %18p,%18p,%18p\n",
            (void *)&var_local_init1, (void *)&var_local_init2, (void *)&var_local_ni1);
     printf("Variables globales  %18p,%18p,%18p\n",
-           (void *)&var_global_init1, (void *)&var_global_init2, (void *)&environ);
+           (void *)&var_global_init1, (void *)&var_global_init2, (void *)&var_global_init3);
     printf("Var (N.I.)globales  %18p,%18p,%18p\n",
-           (void *)&var_global_ni1, (void *)&var_global_init1 /* relleno seguro */, (void *)&var_global_init2);
+           (void *)&var_global_ni1, (void *)&var_global_ni2, (void *)&var_global_ni3);
     printf("Variables staticas  %18p,%18p,%18p\n",
-           (void *)&var_static_init1, (void *)&var_static_init2, (void *)&var_static_ni1);
+           (void *)&var_static_init1, (void *)&var_static_init2, (void *)&var_static_init3);
     printf("Var (N.I.)staticas  %18p,%18p,%18p\n",
-           (void *)&var_static_ni1, (void *)&var_static_init1 /* relleno seguro */, (void *)&var_static_init2);
+           (void *)&var_static_ni1, (void *)&var_static_ni2, (void *)&var_static_ni3);
 }
 
 static void Do_Funcs(void)
