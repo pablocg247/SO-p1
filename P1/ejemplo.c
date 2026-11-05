@@ -428,6 +428,7 @@ void Cmd_io(char *arg[])
         printf("     i-o write [-o] fichero addr cont\n");
     }
 }
+
 void Cmd_open(char *tr[])
 {
     int i, df, mode = 0;
@@ -1500,7 +1501,9 @@ static void do_AllocateMalloc(char *tr[])
         MemListPrint(MEM_MALLOC);
         return;
     }
-    tam = (size_t)strtoull(tr[0], NULL, 10);
+    if (!LeerCantidadMemoria(tr[0], &tam))
+        return;
+
     if (tam == 0) {
         printf("No se asignan bloques de 0 bytes\n");
         return;
@@ -1523,13 +1526,24 @@ static void do_AllocateCreateShared(char *tr[])
     key_t cl;
     size_t tam;
     void *p;
+    intmax_t num_clave;
 
     if (tr[0] == NULL || tr[1] == NULL) {
         MemListPrint(MEM_SHARED);
         return;
     }
-    cl = (key_t)strtoul(tr[0], NULL, 10);
-    tam = (size_t)strtoull(tr[1], NULL, 10);
+
+    if (!LeerNumero(tr[0], &num_clave))
+        return;
+    if (num_clave < INT_MIN || num_clave > INT_MAX) {
+        printf("Clave fuera de rango válido\n");
+        return;
+    }
+    cl = (key_t)num_clave;
+
+    if (!LeerCantidadMemoria(tr[0], &tam))
+        return;
+
     if (tam == 0) {
         printf("No se asignan bloques de 0 bytes\n");
         return;
@@ -1545,12 +1559,20 @@ static void do_AllocateShared(char *tr[])
 {
     key_t cl;
     void *p;
+    intmax_t num_clave;
 
     if (tr[0] == NULL) {
         MemListPrint(MEM_SHARED);
         return;
     }
-    cl = (key_t)strtoul(tr[0], NULL, 10);
+    if (!LeerNumero(tr[0], &num_clave))
+        return;
+    if (num_clave < INT_MIN || num_clave > INT_MAX) {
+        printf("Clave fuera de rango válido\n");
+        return;
+    }
+    cl = (key_t)num_clave;
+
     if ((p = ObtenerMemoriaShmget(cl, 0)) != NULL)
         printf("Memoria compartida de clave %lu  en %p\n", (unsigned long)cl, p);
     else
