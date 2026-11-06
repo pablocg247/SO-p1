@@ -1,0 +1,181 @@
+#include "memlist.h"
+
+static LISTASIMPLE M;
+
+static int MemListAdd(void *addr, size_t size, MemType type, key_t key, const char *name, int df)
+{
+    MemBlock *b = malloc(sizeof(MemBlock));
+    if (b == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    b->addr = addr;
+    b->size = size;
+    b->time = time(NULL);
+    b->type = type;
+    b->key = key;
+    b->df = df;
+
+    if (name != NULL) {
+        strncpy(b->name, name, sizeof(b->name) - 1);
+        b->name[sizeof(b->name) - 1] = '\0';
+    } else {
+        b->name[0] = '\0';
+    }
+
+    int res = AniadirElemento(M, b);
+    if (res == -1) {
+        free(b);
+        return -1;
+    }
+    return res;
+}
+
+int MemListAddMalloc(void *addr, size_t size)
+{
+    return MemListAdd(addr, size, MEM_MALLOC, 0, NULL, -1);
+}
+
+int MemListAddShared(void *addr, size_t size, key_t key)
+{
+    return MemListAdd(addr, size, MEM_SHARED, key, NULL, -1);
+}
+
+int MemListAddMmap(void *addr, size_t size, const char *name, int df)
+{
+    return MemListAdd(addr, size, MEM_MMAP, 0, name, df);
+}
+
+MemBlock *MemListGetByAddr(void *addr)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->addr == addr)
+            return b;
+    }
+    return NULL;
+}
+
+MemBlock *MemListGetByMallocSize(size_t size)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->type == MEM_MALLOC && b->size == size)
+            return b;
+    }
+    return NULL;
+}
+
+MemBlock *MemListGetBySharedKey(key_t key)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->type == MEM_SHARED && b->key == key)
+            return b;
+    }
+    return NULL;
+}
+
+MemBlock *MemListGetByMmapFile(const char *name)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->type == MEM_MMAP && !strcmp(b->name, name))
+            return b;
+    }
+    return NULL;
+}
+
+int MemListHasMappedFd(int df)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->type == MEM_MMAP && b->df == df)
+            return 1;
+    }
+    return 0;
+}
+
+void MemListForgetFd(int df)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = M[i];
+        if (b->type == MEM_MMAP && b->df == df) b->df = -1;
+    }
+}
+
+int MemListDelByAddr(void *addr)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->addr == addr)
+            return BorrarElementoAtPos(M, i);
+    }
+    errno = ENOENT;
+    return -1;
+}
+
+void MemListPrint(MemType filter)
+{
+    const char *tipo_cabecera = "";
+    char fecha[32];
+    struct tm tm_info;
+
+    if (filter == MEM_MALLOC)
+        tipo_cabecera = " malloc";
+    else if (filter == MEM_SHARED)
+        tipo_cabecera = " shared";
+    else if (filter == MEM_MMAP)
+        tipo_cabecera = " mmap";
+
+    printf("******Lista de bloques asignados%s para el proceso %lu\n",
+           tipo_cabecera, (unsigned long)getpid());
+
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+
+        if (filter != MEM_ALL && b->type != filter)
+            continue;
+
+        localtime_r(&b->time, &tm_info);
+        strftime(fecha, sizeof(fecha), "%b %d %H:%M", &tm_info);
+
+        printf("%20p  %15llu %s",
+               b->addr,
+               (unsigned long long)b->size,
+               fecha);
+
+        if (b->type == MEM_MALLOC) {
+            printf("  malloc\n");
+        } else if (b->type == MEM_SHARED) {
+            printf("  shared (key %lu)\n", (unsigned long)b->key);
+        } else if (b->type == MEM_MMAP) {
+            printf("  %s  (descriptor %ld)\n", b->name, (long)b->df);
+        } else {
+            printf("   unknown\n");
+        }
+    }
+}
+
+void MemListClear(void)
+{
+    for (int i = 0; i < MAXLISTASIMPLE && M[i] != NULL; i++) {
+        MemBlock *b = (MemBlock *)M[i];
+        if (b->type == MEM_MALLOC) {
+            free(b->addr);
+        } else if (b->type == MEM_SHARED) {
+            if (shmdt(b->addr) == -1)
+                printf("Error al separar shared: %s\n", strerror(errno));
+        } else if (b->type == MEM_MMAP) {
+            if (munmap(b->addr, b->size) == -1)
+                printf("Error al desmapear: %s\n", strerror(errno));
+            if (b->df >= 0) {
+                if (close(b->df) == -1)
+                    printf("Error al cerrar mapeo: %s\n", strerror(errno));
+                OpenFilesDel(b->df);
+            }
+        }
+    }
+    BorrarLista(M);
+}
