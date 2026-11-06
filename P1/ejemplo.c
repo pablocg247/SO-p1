@@ -1232,8 +1232,6 @@ void Cmd_list(char *arg[])
     }
 }
 
-/*Nuevo*/ 
-
 static void Recursiva(int n)
 {
     char automatico[TAMANO_RECURSION];
@@ -1271,28 +1269,40 @@ void Cmd_memfill(char *arg[])
 {
     void *direccion;
     size_t cantidad;
-    char *fin;
-    uintmax_t valor;
-    if (arg[0] == NULL || arg[1] == NULL || arg[2] == NULL) {
-        printf("Uso: memfill addr cont hcode\n");
+    intmax_t valor;
+    unsigned char byte;
+    char str_byte[4] = " ";
+
+    if (arg[0] == NULL)
         return;
+
+    if (!LeerDireccionMemoria(arg[0], &direccion))
+        return;
+
+    if (arg[1] != NULL && !LeerCantidadMemoria(arg[1], &cantidad))
+        return;
+
+    if (arg[2] != NULL) {
+        if (!LeerNumero(arg[2], &valor))
+            return;
+        if (valor < 0 || valor > UCHAR_MAX) {
+            printf("Byte fuera de rango: %s\n", arg[2]);
+            return;
+        }
     }
-    if (!LeerDireccionMemoria(arg[0], &direccion) ||
-        !LeerCantidadMemoria(arg[1], &cantidad))
-        return;
-    if (arg[2][0] == '\0' || arg[2][0] == '-') {
-        printf("Byte hexadecimal no valido\n");
-        return;
+
+    byte = (unsigned char)valor;
+    if (isprint(byte)) {
+        str_byte[0] = ' ';
+        str_byte[1] = (char)byte;
+        str_byte[2] = ' ';
+        str_byte[3] = '\0';
     }
-    errno = 0;
-    valor = strtoumax(arg[2], &fin, 16);
-    if (arg[2] == fin || *fin != '\0' || errno == ERANGE || valor > UCHAR_MAX) {
-        printf("Byte hexadecimal fuera de rango: %s\n", arg[2]);
-        return;
-    }
-    LlenarMemoria(direccion, cantidad, (unsigned char)valor);
-    printf("Llenados %zu bytes de memoria en %p con 0x%02x\n",
-           cantidad, direccion, (unsigned int)valor);
+
+    printf("Llenando %zu bytes de memoria con el byte%s(%02x) a partir de la direccion %p\n",
+           cantidad, str_byte, (unsigned int)byte, direccion);
+
+    LlenarMemoria(direccion, cantidad, byte);
 }
 
 void Cmd_read(char *arg[])
@@ -1301,8 +1311,9 @@ void Cmd_read(char *arg[])
     void *direccion;
     size_t cantidad;
     ssize_t leidos;
+
     if (arg[0] == NULL || arg[1] == NULL || arg[2] == NULL) {
-        printf("Uso: read df addr cont\n");
+        printf("Parametros incorrectos\n");
         return;
     }
     if (!LeerDescriptor(arg[0], &df) ||
@@ -1316,12 +1327,14 @@ void Cmd_read(char *arg[])
     do {
         leidos = read(df, direccion, cantidad);
     } while (leidos == -1 && errno == EINTR);
+
     if (leidos == -1) {
-        perror("Imposible leer del descriptor");
+        printf("Error al leer del descriptor %d a la direccion %p: %s\n",
+               df, direccion, strerror(errno));
         return;
     }
-    printf("Leidos %jd bytes del descriptor %d en %p\n",
-           (intmax_t)leidos, df, direccion);
+    printf("Leidos %zd bytes del descriptor %d en la direccion %p\n",
+           leidos, df, direccion);
 }
 
 void Cmd_write(char *arg[])
@@ -1331,8 +1344,9 @@ void Cmd_write(char *arg[])
     size_t cantidad, total = 0;
     ssize_t escritos;
     const unsigned char *datos;
+
     if (arg[0] == NULL || arg[1] == NULL || arg[2] == NULL) {
-        printf("Uso: write df addr cont\n");
+        printf("Parametros incorrectos\n");
         return;
     }
     if (!LeerDescriptor(arg[0], &df) ||
@@ -1349,68 +1363,57 @@ void Cmd_write(char *arg[])
         if (escritos == -1) {
             if (errno == EINTR)
                 continue;
-            perror("Imposible escribir en el descriptor");
+            printf("Error al escribir en el descriptor %d desde la direccion %p: %s\n",
+                   df, direccion, strerror(errno));
             return;
         }
-        if (escritos == 0) {
-            printf("No se pudo completar la escritura\n");
-            return;
-        }
+        if (escritos == 0)
+            break;
         total += (size_t)escritos;
     }
-    printf("Escritos %zu bytes desde %p en el descriptor %d\n", total, direccion, df);
+    printf("Escritos %zd bytes en el descriptor %d dsde la direccion %p\n",
+           (ssize_t)total, df, direccion);
 }
 
 void Cmd_memdump(char *arg[])
 {
     void *direccion;
-    size_t cantidad, desplazamiento = 0;
+    size_t cantidad = 25, desplazamiento = 0;
     const unsigned char *datos;
 
-    if (arg[0] == NULL || arg[1] == NULL) {
-        printf("Uso: memdump addr cont\n");
+    if (arg[0] == NULL)
         return;
-    }
 
-    if (!LeerDireccionMemoria(arg[0], &direccion) ||
-        !LeerCantidadMemoria(arg[1], &cantidad))
+    if (!LeerDireccionMemoria(arg[0], &direccion))
+        return;
+
+    if (arg[1] != NULL && !LeerCantidadMemoria(arg[1], &cantidad))
         return;
 
     datos = direccion;
 
-    printf("Volcando %zu bytes desde %p\n", cantidad, direccion);
+    printf("Volcando %zu bytes desde la direccion %p\n", cantidad, direccion);
 
     while (desplazamiento < cantidad) {
         size_t bytes = cantidad - desplazamiento;
 
-        if (bytes > 16)
-            bytes = 16;
-
-        printf("%p: ", (const void *)(datos + desplazamiento));
-
-        for (size_t i = 0; i < bytes; i++) {
-            printf("%02x ",
-                   (unsigned int)datos[desplazamiento + i]);
-        }
-
-        for (size_t i = bytes; i < 16; i++)
-            printf("   ");
-
-        printf(" |");
+        if (bytes > 25)
+            bytes = 25;
 
         for (size_t i = 0; i < bytes; i++) {
             unsigned char c = datos[desplazamiento + i];
-
-            printf("%c", isprint(c) ? c : '.');
+            printf("  %c", isprint(c) ? c : ' ');
         }
+        printf("\n");
 
-        printf("|\n");
+        for (size_t i = 0; i < bytes; i++) {
+            printf(" %02x", (unsigned int)datos[desplazamiento + i]);
+        }
+        printf("\n");
 
         desplazamiento += bytes;
     }
 }
-
-/******************** ALLOCATE Y DEALLOCATE ********************/
 
 static void *ObtenerMemoriaShmget(key_t clave, size_t tam)
 {
@@ -1842,8 +1845,9 @@ void Cmd_memory(char *arg[])
     int i;
 
     if (arg[0] == NULL) {
-        MemListPrint(MEM_ALL);
-        return;
+        blocks = 1;
+        funcs = 1;
+        vars = 1;
     }
 
     for (i = 0; arg[i] != NULL; i++) {
@@ -1866,12 +1870,12 @@ void Cmd_memory(char *arg[])
         }
     }
 
-    if (blocks)
-        MemListPrint(MEM_ALL);
     if (vars)
         Do_Vars();
     if (funcs)
         Do_Funcs();
+    if (blocks)
+        MemListPrint(MEM_ALL);
     if (pmap)
         Do_Pmap();
 }

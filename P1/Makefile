@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -g -Wall
 
-p2: p2.c ejemplo.o path.o listasimple.o openfileslist.o
-	$(CC) -o p2 $(CFLAGS) p2.c  ejemplo.o path.o listasimple.o openfileslist.o
+p2: p2.c ejemplo.o path.o listasimple.o openfileslist.o memlist.o
+	$(CC) -o p2 $(CFLAGS) p2.c  ejemplo.o path.o listasimple.o openfileslist.o memlist.o
 
 ejemplo.o: ejemplo.c ejemplo.h path.h openfileslist.h
 	$(CC) -c $(CFLAGS) ejemplo.c
