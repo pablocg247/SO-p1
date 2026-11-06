@@ -30,19 +30,16 @@ typedef struct MemBlock {
 	int df;                   /* Solo para MEM_MMAP */
 } MemBlock;
 
-/* Funciones de insercion */
 int MemListAddMalloc(void *addr, size_t size);
 int MemListAddShared(void *addr, size_t size, key_t key);
 int MemListAddMmap(void *addr, size_t size, const char *name, int df);
 
-/* Funciones de busqueda */
 MemBlock *MemListGetByAddr(void *addr);
 MemBlock *MemListGetByMallocSize(size_t size);
 MemBlock *MemListGetBySharedKey(key_t key);
 MemBlock *MemListGetByMmapFile(const char *name);
 int MemListHasMappedFd(int df);
 
-/* Funciones de borrado y listado */
 int MemListDelByAddr(void *addr);
 void MemListPrint(MemType filter);
 void MemListClear(void);

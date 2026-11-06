@@ -273,7 +273,6 @@ static int LeerDescriptor(const char *texto, int *df)
     return 1;
 }
 
-/* Nuevas funciones auxiliares*/
 static int LeerDireccionMemoria(const char *texto, void **direccion)
 {
     char *fin;
@@ -1268,10 +1267,9 @@ static void LlenarMemoria(void *p, size_t cont, unsigned char byte)
 void Cmd_memfill(char *arg[])
 {
     void *direccion;
-    size_t cantidad;
-    intmax_t valor;
+	size_t cantidad = 128;
+    intmax_t valor = 65
     unsigned char byte;
-    char str_byte[4] = " ";
 
     if (arg[0] == NULL)
         return;
@@ -1292,15 +1290,9 @@ void Cmd_memfill(char *arg[])
     }
 
     byte = (unsigned char)valor;
-    if (isprint(byte)) {
-        str_byte[0] = ' ';
-        str_byte[1] = (char)byte;
-        str_byte[2] = ' ';
-        str_byte[3] = '\0';
-    }
 
-    printf("Llenando %zu bytes de memoria con el byte%s(%02x) a partir de la direccion %p\n",
-           cantidad, str_byte, (unsigned int)byte, direccion);
+	printf("Llenando %zu bytes de memoria con el byte %c(%02x) a partir de la direccion %p\n",
+           cantidad, isprint(byte) ? byte : ' ', (unsigned int)byte, direccion);
 
     LlenarMemoria(direccion, cantidad, byte);
 }
@@ -1378,7 +1370,7 @@ void Cmd_write(char *arg[])
 void Cmd_memdump(char *arg[])
 {
     void *direccion;
-    size_t cantidad = 25, desplazamiento = 0;
+    size_t cantidad = 20, desplazamiento = 0;
     const unsigned char *datos;
 
     if (arg[0] == NULL)
@@ -1397,8 +1389,8 @@ void Cmd_memdump(char *arg[])
     while (desplazamiento < cantidad) {
         size_t bytes = cantidad - desplazamiento;
 
-        if (bytes > 25)
-            bytes = 25;
+        if (bytes > 20)
+            bytes = 20;
 
         for (size_t i = 0; i < bytes; i++) {
             unsigned char c = datos[desplazamiento + i];
